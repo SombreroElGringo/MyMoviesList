@@ -5,6 +5,7 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.Configuration;
+import android.os.AsyncTask;
 import android.preference.PreferenceManager;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
@@ -25,6 +26,7 @@ import com.example.florent.mymovieslist.model.Movie;
 import com.example.florent.mymovieslist.model.MoviesResponse;
 import com.example.florent.mymovieslist.api.Client;
 import com.example.florent.mymovieslist.api.Service;
+import com.example.florent.mymovieslist.data.FavoriteDbHelper;
 
 
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
     private List<Movie> movieList;
     ProgressDialog progressDialog;
     private SwipeRefreshLayout swipeContainer;
+    private FavoriteDbHelper favoriteDbHelper;
     private AppCompatActivity activity = MainActivity.this;
     public static final String LOG_TAG = MoviesAdapter.class.getName();
 
@@ -84,6 +87,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         recyclerView.setItemAnimator(new DefaultItemAnimator());
         recyclerView.setAdapter(adapter);
         adapter.notifyDataSetChanged();
+        favoriteDbHelper = new FavoriteDbHelper(activity);
 
         swipeContainer = (SwipeRefreshLayout) findViewById(R.id.main_content);
         swipeContainer.setColorSchemeResources(android.R.color.holo_orange_dark);
@@ -113,6 +117,9 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         recyclerView.setItemAnimator(new DefaultItemAnimator());
         recyclerView.setAdapter(adapter);
         adapter.notifyDataSetChanged();
+        favoriteDbHelper = new FavoriteDbHelper(activity);
+
+        getAllFavorite();
     }
 
     private void loadJSON() {
@@ -222,6 +229,9 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         if (sortOrder.equals(this.getString(R.string.pref_most_popular))) {
             Log.d(LOG_TAG, "Sorting by most popular");
             loadJSON();
+        } else if (sortOrder.equals(this.getString(R.string.favorite))){
+            Log.d(LOG_TAG, "Sorting by favorite");
+            initViews2();
         } else{
             Log.d(LOG_TAG, "Sorting by vote average");
             loadJSON1();
@@ -237,5 +247,21 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
 
             checkSortOrder();
         }
+    }
+
+    private void getAllFavorite(){
+        new AsyncTask<Void, Void, Void>(){
+            @Override
+            protected Void doInBackground(Void... params){
+                movieList.clear();
+                movieList.addAll(favoriteDbHelper.getAllFavorite());
+                return null;
+            }
+            @Override
+            protected void onPostExecute(Void aVoid){
+                super.onPostExecute(aVoid);
+                adapter.notifyDataSetChanged();
+            }
+        }.execute();
     }
 }

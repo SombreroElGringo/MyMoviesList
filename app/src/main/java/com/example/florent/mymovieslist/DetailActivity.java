@@ -1,9 +1,14 @@
 package com.example.florent.mymovieslist;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CollapsingToolbarLayout;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -17,9 +22,12 @@ import com.bumptech.glide.Glide;
 import com.example.florent.mymovieslist.adapter.TrailerAdapter;
 import com.example.florent.mymovieslist.api.Client;
 import com.example.florent.mymovieslist.api.Service;
+import com.example.florent.mymovieslist.data.FavoriteContract;
+import com.example.florent.mymovieslist.data.FavoriteDbHelper;
 import com.example.florent.mymovieslist.model.Movie;
 import com.example.florent.mymovieslist.model.Trailer;
 import com.example.florent.mymovieslist.model.TrailerResponse;
+import com.github.ivbaranov.mfb.MaterialFavoriteButton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +44,10 @@ public class DetailActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private TrailerAdapter adapter;
     private List<Trailer> trailerList;
+    private FavoriteDbHelper favoriteDbHelper;
     private Movie favorite;
     private final AppCompatActivity activity = DetailActivity.this;
+    private SQLiteDatabase db;
 
     Movie movie;
     String thumbnail, movieName, synopsis, rating, dateOfRelease;
@@ -51,6 +61,9 @@ public class DetailActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+        FavoriteDbHelper dbHelper = new FavoriteDbHelper(this);
+        db = dbHelper.getWritableDatabase();
 
         initCollapsingToolbar();
 
@@ -88,6 +101,50 @@ public class DetailActivity extends AppCompatActivity {
             Toast.makeText(this, "No API Data", Toast.LENGTH_SHORT).show();
         }
 
+        MaterialFavoriteButton materialFavoriteButton =
+                (MaterialFavoriteButton) findViewById(R.id.favorite_button);
+
+        if (Exists(movieName)){
+            materialFavoriteButton.setFavorite(true);
+            materialFavoriteButton.setOnFavoriteChangeListener(
+                    new MaterialFavoriteButton.OnFavoriteChangeListener() {
+                        @Override
+                        public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
+                            if (favorite == true) {
+                                saveFavorite();
+                                Snackbar.make(buttonView, "Added to Favorite",
+                                        Snackbar.LENGTH_SHORT).show();
+                            } else {
+                                favoriteDbHelper = new FavoriteDbHelper(DetailActivity.this);
+                                favoriteDbHelper.deleteFavorite(movie_id);
+                                Snackbar.make(buttonView, "Removed from Favorite",
+                                        Snackbar.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+
+
+        }else {
+            materialFavoriteButton.setOnFavoriteChangeListener(
+                    new MaterialFavoriteButton.OnFavoriteChangeListener() {
+                        @Override
+                        public void onFavoriteChanged(MaterialFavoriteButton buttonView, boolean favorite) {
+                            if (favorite == true) {
+                                saveFavorite();
+                                Snackbar.make(buttonView, "Added to Favorite",
+                                        Snackbar.LENGTH_SHORT).show();
+                            } else {
+                                int movie_id = getIntent().getExtras().getInt("id");
+                                favoriteDbHelper = new FavoriteDbHelper(DetailActivity.this);
+                                favoriteDbHelper.deleteFavorite(movie_id);
+                                Snackbar.make(buttonView, "Removed from Favorite",
+                                        Snackbar.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+
+
+        }
         initViews();
     }
 
@@ -128,9 +185,7 @@ public class DetailActivity extends AppCompatActivity {
         adapter.notifyDataSetChanged();
 
         loadJSON();
-
     }
-
 
     private void loadJSON(){
 
@@ -162,5 +217,42 @@ public class DetailActivity extends AppCompatActivity {
             Log.d("Error", e.getMessage());
             Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public void saveFavorite(){
+        favoriteDbHelper = new FavoriteDbHelper(activity);
+        favorite = new Movie();
+
+        Double rate = movie.getVoteAverage();
+
+
+        favorite.setId(movie_id);
+        favorite.setOriginalTitle(movieName);
+        favorite.setPosterPath(thumbnail);
+        favorite.setVoteAverage(rate);
+        favorite.setOverview(synopsis);
+
+        favoriteDbHelper.addFavorite(favorite);
+    }
+
+    public boolean Exists(String searchItem) {
+
+        String[] projection = {
+                FavoriteContract.FavoriteEntry._ID,
+                FavoriteContract.FavoriteEntry.COLUMN_MOVIEID,
+                FavoriteContract.FavoriteEntry.COLUMN_TITLE,
+                FavoriteContract.FavoriteEntry.COLUMN_USERRATING,
+                FavoriteContract.FavoriteEntry.COLUMN_POSTER_PATH,
+                FavoriteContract.FavoriteEntry.COLUMN_PLOT_SYNOPSIS
+
+        };
+        String selection = FavoriteContract.FavoriteEntry.COLUMN_TITLE + " =?";
+        String[] selectionArgs = { searchItem };
+        String limit = "1";
+
+        Cursor cursor = db.query(FavoriteContract.FavoriteEntry.TABLE_NAME, projection, selection, selectionArgs, null, null, null, limit);
+        boolean exists = (cursor.getCount() > 0);
+        cursor.close();
+        return exists;
     }
 }
