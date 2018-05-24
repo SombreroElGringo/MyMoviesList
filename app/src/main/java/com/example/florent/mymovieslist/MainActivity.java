@@ -102,7 +102,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         checkSortOrder();
     }
 
-    private void initViews2(){
+    private void initFavoriteViews(){
         recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
 
         movieList = new ArrayList<>();
@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         getAllFavorite();
     }
 
-    private void loadJSON() {
+    private void loadMostPopularJSON() {
         try{
             if (BuildConfig.THE_MOVIE_DB_API_KEY.isEmpty()){
                 Toast.makeText(getApplicationContext(), "Please obtain API Key firstly from www.themoviedb.org", Toast.LENGTH_SHORT).show();
@@ -159,7 +159,7 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         }
     }
 
-    private void loadJSON1(){
+    private void loadVoteAverageJSON(){
 
         try{
             if (BuildConfig.THE_MOVIE_DB_API_KEY.isEmpty()){
@@ -172,6 +172,43 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
             Service apiService =
                     Client.getClient().create(Service.class);
             Call<MoviesResponse> call = apiService.getTopRatedMovies(BuildConfig.THE_MOVIE_DB_API_KEY);
+            call.enqueue(new Callback<MoviesResponse>() {
+                @Override
+                public void onResponse(Call<MoviesResponse> call, Response<MoviesResponse> response) {
+                    List<Movie> movies = response.body().getResults();
+                    recyclerView.setAdapter(new MoviesAdapter(getApplicationContext(), movies));
+                    recyclerView.smoothScrollToPosition(0);
+                    if (swipeContainer.isRefreshing()){
+                        swipeContainer.setRefreshing(false);
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<MoviesResponse> call, Throwable t) {
+                    Log.d("Error", t.getMessage());
+                    Toast.makeText(MainActivity.this, "Error Fetching Data!", Toast.LENGTH_SHORT).show();
+
+                }
+            });
+        }catch (Exception e){
+            Log.d("Error", e.getMessage());
+            Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void loadNowPlayingJSON(){
+
+        try{
+            if (BuildConfig.THE_MOVIE_DB_API_KEY.isEmpty()){
+                Toast.makeText(getApplicationContext(), "Please obtain API Key firstly from themoviedb.org", Toast.LENGTH_SHORT).show();
+                progressDialog.dismiss();
+                return;
+            }
+
+            Client Client = new Client();
+            Service apiService =
+                    Client.getClient().create(Service.class);
+            Call<MoviesResponse> call = apiService.getPlayingMovies(BuildConfig.THE_MOVIE_DB_API_KEY);
             call.enqueue(new Callback<MoviesResponse>() {
                 @Override
                 public void onResponse(Call<MoviesResponse> call, Response<MoviesResponse> response) {
@@ -228,13 +265,16 @@ public class MainActivity extends AppCompatActivity implements SharedPreferences
         );
         if (sortOrder.equals(this.getString(R.string.pref_most_popular))) {
             Log.d(LOG_TAG, "Sorting by most popular");
-            loadJSON();
-        } else if (sortOrder.equals(this.getString(R.string.favorite))){
+            loadMostPopularJSON();
+        } else if (sortOrder.equals(this.getString(R.string.favorite))) {
             Log.d(LOG_TAG, "Sorting by favorite");
-            initViews2();
+            initFavoriteViews();
+        } else if (sortOrder.equals(this.getString(R.string.pref_now_playing))) {
+            Log.d(LOG_TAG, "Sorting by now playing");
+            loadNowPlayingJSON();
         } else{
             Log.d(LOG_TAG, "Sorting by vote average");
-            loadJSON1();
+            loadVoteAverageJSON();
         }
     }
 
